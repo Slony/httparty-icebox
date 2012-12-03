@@ -211,20 +211,18 @@ module HTTParty #:nodoc:
           data = {
             response: value.response,
             format: value.request.format,
+            path: value.request.path
           }
           File.open( @path.join(key), 'w' ) { |file| file << Base64.encode64(Marshal.dump(data))  }
           true
         end
         def get(key)
           data = Marshal.load(Base64.decode64(File.read( @path.join(key))))
-          parse_lambda = lambda {
-            HTTParty::Request.new(:get, '/', format: data[:format]).send 'parse_response', data[:response].body
-          }
-          value = HTTParty::Response.new nil, data[:response], parse_lambda
-
           Cache.logger.info("Cache: #{data.nil? ? "miss" : "hit"} (#{key})")
-
-          value
+          request = HTTParty::Request.new(Net::HTTP::Get, data[:path], format: data[:format])
+          parsed_block = lambda { request.send 'parse_response', data[:response].body }
+          
+          HTTParty::Response.new request, data[:response], parsed_block
         end
         def exists?(key)
           File.exists?( @path.join(key) )
